@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<!--//
+
+Elite Dangerous Cockpit for external monitors
+
+This file is the GUI.
+
+File: elite.html
+Author: CMDR sparky23882
+Date created: 2019-07-07
+
+License: CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Version History:
+----------------------------------------------------------------------------------------------------
+1.00.00     Initial Version
+----------------------------------------------------------------------------------------------------
+
+Functions:
+----------------------------------------------------------------------------------------------------
+- will show relevant information according to current activities in elite
+- panel will auto-switch to the moat important information depending on in-game actions
+----------------------------------------------------------------------------------------------------
+
+Usage:
+----------------------------------------------------------------------------------------------------
+- put elite.html, elite.css and elite-ajax.php on a PHP-capable webserver
+- configure the journal path in elite-ajax.php
+- open elite.html through webserver
+----------------------------------------------------------------------------------------------------
+
+//-->
+<meta http-equiv="refresh" content="300" /><!-- sometimes, javascript can block the browser and the panel won't update anymore -->
+<title>Elite Dangerous Cockpit</title>
+<link rel="stylesheet" type="text/css" href="elite.css">
+<script type="text/JavaScript">
+
+// debug variable for text output
+var debug="";
+var debugStatus=true;
+var displayRefreshCounter=0;
+var statusRefreshCounter=0;
+var journalRefreshCounter=0;
+
+// 0=default, 1=combat, 2=asteroidMining, 3=materials collecting 
+var currentView=0;
+var autoSwitchViews=true;
+
+// filter target views to only show human commanders
+var onlyCommanders=false;
+var compactEnemyList=false;
+
+// show cargo in chat panel
+var showCargoInChatPanel=true;
+
+// data
+var flags=0;
+var journal=new Array();
+var targetShips=new Array(); // past targeted ships, only players
+var targetShip=new Array(); // currently targeted ship, player or NPC
+var targetModules=new Array(); // modules of currently targeted ship as far as known yet
+var attackingPlayers=new Array();
+var cargoCapacity=0;
+var cargoCapacityUsed=0;
+var cargoList=new Array();
+var mostNonDroneCargo="";
+var prospectorList=new Array();
+var prospectorMaterialContent="";
+var chatLog=new Array();
+var speeding=false;
+var chatPanelJustCreatedAndNeedsAutoscroll=false;
+var recentlyScannedShip=false;
+var materials = new Array(); // all materials unsorted list
+var materialsCollectedSinceLastDocking = new Array(); // list of material names
+var materialsRecentlyCollected = new Array(); // list of material names
+
+function formatNumber(num) {
+  return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.')
+}
+
+// update data from Status.json
+function parseStatus(statusJson){
+    try{ // catch erroneous JSON
+        var statusObj = JSON.parse(statusJson);
+        flags = statusObj.Flags;
+        speeding=(statusObj.LegalState=="Speeding");
+    }catch(e){
+        debug+="Chat invalid JSON<br>";
+    }
+}
+function getStatus(){
+    var request = new XMLHttpRequest();
+    request.open("GET","elite_ajax.php?data=status");
+    request.addEventListener('load', function(event) {
+       if (request.status >= 200 && request.status < 300) {
+          parseStatus(request.responseText);
+          statusRefreshCounter++;
+       }
+    });
+    request.send();
+}
+
+function parseCargo(cargoJson){
+    var cargoObj = JSON.parse(cargoJson);
+    cargoList = cargoObj.Inventory;
+    
+    var inventory = new Array();
+    var mostString = "";
+    var mostAmount = 0;
+    var cargoUsed = 0;
+    for(var k=0;k<cargoObj.Inventory.length;k++)
+    {
+        inventory.push([cargoObj.Inventory[k].Name, cargoObj.Inventory[k].Count]);
+        cargoUsed+=cargoObj.Inventory[k].Count;
+        if(cargoObj.Inventory[k].Count > mostAmount && cargoObj.Inventory[k].Name!="drones")
+        {
+            mostAmount = cargoObj.Inventory[k].Count;
+            mostString = cargoObj.Inventory[k].Name;
+        }
+    }
+    cargoCapacityUsed = cargoUsed;
+    cargoList = inventory;
+    mostNonDroneCargo = mostString;
+}
+function getCargo(){
+    var request = new XMLHttpRequest();
+    request.open("GET","elite_ajax.php?data=cargo");
+    request.addEventListener('load', function(event) {
+       if (request.status >= 200 && request.status < 300) {
+          parseCargo(request.responseText);
+       }
+    });
+    request.send();
+}
+
+// update data from Journal file
+function parseJournal(journalText){
+    journal=journalText.split("\n");
+    updateTargetShips();
+    updateAttackers();
+    updateCargo();
+    updateProspectorList();
+    updateChatLog();
+    updateMaterials();
+}
+function getJournal(){
+    var request = new XMLHttpRequest();
+    request.open("GET","elite_ajax.php?data=journal");
+    request.addEventListener('load', function(event) {
+       if (request.status >= 200 && request.status < 300) {
+          parseJournal(request.responseText);
+          journalRefreshCounter++;
+       }
+    });
+    request.send();
+}
+
+// update targetShips array with all seen ships, most recently seen ships first
+function updateTargetShips(){
+    var currentTargetSet=false;
+    var ships = new Array();
+    var tmpTargetModules = new Array();
+    var isFirstShip = true;
+    for(var i=journal.length-1;i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="ShipTargeted" && journalEntry.TargetLocked) // is the entry a ship?
+                {
+                    var ship = new Array();
+                    if(journalEntry.hasOwnProperty("Ship_Localised")){ship = [journalEntry.Ship_Localised];}else{ship = [journalEntry.Ship];}
+                    if(journalEntry.ScanStage>=1) // do we have pilot and squadron name?
+                    {
+                        ship.push(journalEntry.PilotName_Localised);
+                        ship.push(journalEntry.PilotRank);
+                        ship.push(journalEntry.SquadronID);
+                        if(journalEntry.ScanStage>=2) // do we have shield and hull?
+                        {
+                            ship.push(journalEntry.ShieldHealth);
+                            ship.push(journalEntry.HullHealth);
+                        }
+                        if(journalEntry.ScanStage>=3) // do we have faction and legal status?
+                        {
+                            ship.push(journalEntry.Faction);
+                            ship.push(journalEntry.LegalStatus);
+                            if(journalEntry.LegalStatus=="Wanted")
+                            ship.push(journalEntry.Bounty);
+                        }
+                        // if this ship is not yet listed, list it
+                        var shipKnown = false;
+                        for(var k=0;k<ships.length;k++)
+                        {
+                            if(ships[k][0]==ship[0] && ships[k][1]==ship[1]){shipKnown = true;}
+                        }
+                        if(!shipKnown)
+                        {
+                            if(!onlyCommanders || (onlyCommanders && ship[1].startsWith("KDT")))
+                            {
+                                if(!isFirstShip){
+                                    /* past targets */
+                                    ships.push(ship);
+                                }else{
+                                    isFirstShip = false;
+                                }
+                            }
+                        }
+                        // The first ship (from the end) was the last/current target. Player and NPC here.
+                        if(!currentTargetSet)
+                        {
+                            targetShip=ship;
+                            currentTargetSet=true;
+                            // if it was scanned within the last 30 seconds, mark as "recently scanned"
+                            dateOfScan = new Date(journalEntry.timestamp);
+                            now = new Date();
+                            recentlyScannedShip = (((now-dateOfScan)/1000) < 30);
+                        }
+                        // if a module was found and is not yet in the list, add it
+                        if(journalEntry.hasOwnProperty("Subsystem")){
+                            // only for the current target ship
+                            if(targetShip[0]==ship[0] && targetShip[1]==ship[1]){
+                                var moduleKnown = false;
+                                for(var k=0;k<tmpTargetModules.length;k++){
+                                    if(journalEntry.Subsystem==tmpTargetModules[k]){
+                                        moduleKnown = true;
+                                        break;
+                                    }
+                                }
+                                if(!moduleKnown){
+                                    // filter out uninteresting modules that every ship has
+                                    if(journalEntry.Subsystem.search("ext_drive")==-1
+                                    && journalEntry.Subsystem.search("hyperdrive")==-1
+                                    && journalEntry.Subsystem.search("lifesupport")==-1
+                                    && journalEntry.Subsystem.search("powerdistributor")==-1
+                                    && journalEntry.Subsystem.search("powerplant")==-1
+                                    && journalEntry.Subsystem.search("modularcargobaydoor")==-1){
+                                        tmpTargetModules.push(journalEntry.Subsystem);
+                                        tmpTargetModules.sort();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }catch(e){
+                debug+="Targetmodules invalid JSON<br>";
+            }
+        }
+    }
+    targetModules=tmpTargetModules;
+    targetShips=ships;
+}
+function formatModuleName(modulename){
+    var modulenameFormatted = modulename;
+    var tmp = modulename.split("_");
+    if(modulename.startsWith("$hpt")){
+        // hardpoint, normal weapons)
+        if(tmp.length==5 && (tmp[2]=="fixed" || tmp[2]=="gimbal" || tmp[2]=="turret")
+                         && (tmp[3]=="small" || tmp[3]=="medium" || tmp[3]=="large" || tmp[3]=="huge")){
+            modulenameFormatted = tmp[1]+" ("+tmp[2]+", "+tmp[3]+")";
+        }
+        // defense stuff
+        if(tmp[2]=="tiny"){
+            modulenameFormatted = tmp[1];
+        }
+    }
+    if(tmp[1].indexOf("shield")!=-1){
+        // everything shield related
+        modulenameFormatted = tmp[1]+" ("+tmp[2]+")";
+    }
+    return modulenameFormatted;
+}
+function isModuleWeapon(modulename){
+    var tmp = modulename.split("_");
+    if((tmp[2]=="fixed" || tmp[2]=="gimbal" || tmp[2]=="turret")
+        && (tmp[3]=="small" || tmp[3]=="medium" || tmp[3]=="large" || tmp[3]=="huge")){
+        return true;
+    }
+    return false;
+}
+function isModuleDefense(modulename){
+    var tmp = modulename.split("_");
+    if(tmp[2]=="tiny"){
+        return true;
+    }
+    return false;
+}
+function isModuleShield(modulename){
+    var tmp = modulename.split("_");
+    if(tmp[1].indexOf("shield")!=-1){
+        return true;
+    }
+    return false;
+}
+function updateAttackers(){
+    var attackers = new Array();
+    for(var i=journal.length-1;i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="CrimeVictim")
+                {
+                    attackers.push(journalEntry.Offender);
+                }
+            }catch(e){
+                debug+="Attackers invalid JSON<br>";
+            }
+        }
+    }
+    attackingPlayers=attackers;
+}
+function isAttacker(commander){
+    for(var i=0;i<attackingPlayers.length;i++)
+    {
+        if(commander.indexOf(attackingPlayers[i])!=-1){return true;}
+    }
+    return false;
+}
+function updateCargo(){
+    for(var i=journal.length-1;i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="Loadout")
+                {
+                    cargoCapacity=journalEntry.CargoCapacity;
+                    break;
+                }
+            }catch(e){
+                debug+="Cargo invalid JSON<br>";
+            }
+        }
+    }
+}
+function updateProspectorList(){
+    // if the last event is "LaunchDrone" with Type="Prospector", the list is cleared
+    // if the last event is "ProspectedAsteroid", the list is populated
+    var list = new Array();
+    for(var i=journal.length-1;i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="LaunchDrone" && journalEntry.Type=="Prospector")
+                {
+                    // do nothing, so in the end an empty array is written back
+                    prospectorMaterialContent="";
+                    break;
+                }
+                if(journalEntry.event=="ProspectedAsteroid")
+                {
+                    // populate list
+                    for(var k=0;k<journalEntry.Materials.length;k++)
+                    {
+                        list.push([journalEntry.Materials[k].Name,journalEntry.Materials[k].Proportion]);
+                    }
+                    prospectorMaterialContent=journalEntry.Content_Localised;
+                    break;
+                }
+            }catch(e){
+                debug+="Prospector invalid JSON<br>";
+            }
+        }
+    }
+    prospectorList = list;
+}
+function updateChatLog(){
+    var list = new Array();
+    for(var i=0;i<journal.length;i++)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="SendText")
+                {
+                    list.push(["tx",journalEntry.To,journalEntry.Message,journalEntry.Channel]);
+                }
+                if(journalEntry.event=="ReceiveText" && (journalEntry.Channel!="npc"))
+                {
+                    list.push(["rx",journalEntry.From,journalEntry.Message,journalEntry.Channel]);
+                }
+            }catch(e){
+                debug+="Chat invalid JSON<br>";
+            }
+        }
+    }
+    chatLog=list;
+}
+function updateMaterials(){
+    // format is materialsTmp[Name, Count_at_station, Count_additionally_collected]
+    var materialsTmp = new Array();
+    var materialsCollectedSinceLastDockingTmp = new Array();
+    var materialsRecentlyCollectedTmp = new Array();
+    for(var i=0;i<journal.length;i++)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="Materials") // full materials list
+                {
+                    // this one event contains ALL materials, so overwrite what was there to get
+                    // the most recent count of everything
+                    for(var k=0;k<journalEntry.Raw.length;k++){
+                        materialsTmp.push([journalEntry.Raw[k].Name, journalEntry.Raw[k].Count, 0]);
+                    }
+                    for(var k=0;k<journalEntry.Manufactured.length;k++){
+                        materialsTmp.push([journalEntry.Manufactured[k].Name, journalEntry.Manufactured[k].Count, 0]);
+                    }
+                    for(var k=0;k<journalEntry.Encoded.length;k++){
+                        materialsTmp.push([journalEntry.Encoded[k].Name, journalEntry.Encoded[k].Count, 0]);
+                    }
+                }
+                if(journalEntry.event=="MaterialCollected") // collected single material
+                {
+                    for(var k=0;k<materialsTmp.length;k++){
+                        if(journalEntry.Name==materialsTmp[k][0]){
+                            materialsTmp[k][2]+=journalEntry.Count;
+                        }
+                    }
+                    if(!materialsCollectedSinceLastDockingTmp.includes(journalEntry.Name)){
+                        materialsCollectedSinceLastDockingTmp.push(journalEntry.Name);
+                    }
+                    // if it was collected within the last 60 seconds, mark as new
+                    dateOfScan = new Date(journalEntry.timestamp);
+                    now = new Date();
+                    if(((now-dateOfScan)/1000) < 60){
+                        if(!materialsRecentlyCollectedTmp.includes(journalEntry.Name)){
+                            materialsRecentlyCollectedTmp.push(journalEntry.Name);
+                        }
+                    }
+                }
+            }catch(e){
+                debug+="Materials invalid JSON<br>";
+            }
+        }
+    }
+    materials=materialsTmp;
+    materialsCollectedSinceLastDocking=materialsCollectedSinceLastDockingTmp;
+    materialsRecentlyCollected=materialsRecentlyCollectedTmp;
+}
+
+function autoswitchView(){
+    // switch to the correct view, depending on what is happening in the game
+    view=0; // the default
+    // fired a prospector drone in the last 100 events --> mining
+    for(var i=journal.length-1;i>journal.length-100 && i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            var journalEntry = JSON.parse(journal[i]);
+            if(journalEntry.event=="LaunchDrone" && journalEntry.Type=="Prospector")
+            {
+                view=2;
+                break;
+            }
+        }
+    }
+    if((flags & 0x4000000) != 0){view=3;} // sitting in SRV --> surface prospecting
+    for(var i=journal.length-1;i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            var journalEntry = JSON.parse(journal[i]);
+            if(journalEntry.event=="Music")
+            {
+                // music currently playing is "Combat_*" --> combat
+                if(journalEntry.MusicTrack.startsWith("Combat")){view=1;}
+                break;
+            }
+        }
+    }
+    if((flags & 0x800000) != 0){view=1;} // being interdicted --> combat
+    if(recentlyScannedShip){view=1;} // recently scanned a ship --> combat
+    if(autoSwitchViews){
+        currentView=view;
+    }
+}
+function manualSwitch(view){
+    // switches to view and turns off autoswitching
+    // -1 turns autoswitching back on
+    if(view==-1){
+        autoSwitchViews=true;
+    }else{
+        autoSwitchViews=false;
+        currentView=view;
+    }
+    return false;
+}
+function drawDebugPanel(){
+    var panelText="<div class=\"panel debug\"><h1>Update & Info</h1>";
+    panelText+="<div class=\"progressSpinner\" style=\"transform:rotate("+(displayRefreshCounter++)*10+"deg);\">&nbsp;</div>";
+    panelText+="<div class=\"progressSpinner\" style=\"transform:rotate("+statusRefreshCounter*10+"deg);\">&nbsp;</div>";
+    panelText+="<div class=\"progressSpinner\" style=\"transform:rotate("+journalRefreshCounter*10+"deg);\">&nbsp;</div>";
+    panelText+="<p style=\"clear:both;\">";
+    panelText+="Journal File Length: "+journal.length+"<br>";
+    panelText+=debug;
+    panelText+="</p></div>\n";
+    return panelText;
+}
+function checkFlags(pattern){
+    // If any flag is set, return true. If all flags are unset, return false.
+    return ((flags & pattern)!=0);
+}
+function drawStatusPanel(){
+    var panelText="<div class=\"panel status\"><h1>Status</h1><ul>";
+    if(!checkFlags(0x4000000)) // not in SRV
+    {
+        panelText+="<li class=\"headline"+(checkFlags(0x50244)?" blocking":"")+"\">FSD availability</li>";
+        panelText+="<li class=\""+(checkFlags(0x4)?" blocking":"hidden")+"\">Landing Gear</li>";
+        panelText+="<li class=\""+(checkFlags(0x40)?" blocking":"hidden")+"\">Hardpoints</li>";
+        panelText+="<li class=\""+(checkFlags(0x200)?" blocking":"hidden")+"\">Cargo Scoop</li>";
+        panelText+="<li class=\""+(checkFlags(0x10000)?" blocking":"hidden")+"\">Mass-Lock</li>";
+        panelText+="<li class=\""+(checkFlags(0x40000)?" blocking":"hidden")+"\">FSD cooldown</li>";
+        panelText+="<li class=\"headline"+((checkFlags(0xd80400)||speeding)?" danger":"")+"\">Warnings</li>";
+        panelText+="<li class=\""+(checkFlags(0x400)?" danger":"hidden")+"\">Silent running</li>";
+        panelText+="<li class=\""+(speeding?" danger":"hidden")+"\">Speeding</li>";
+        panelText+="<li class=\""+(checkFlags(0x100000)?" danger":"hidden")+"\">Ship overheating</li>";
+        panelText+="<li class=\""+(checkFlags(0x400000)?" danger":"hidden")+"\">In danger</li>";
+        panelText+="<li class=\""+(checkFlags(0x800000)?" danger":"hidden")+"\">Being interdicted</li>";
+        panelText+="<li class=\""+(checkFlags(0x80000)?" danger":"hidden")+"\">Low fuel</li>";
+    }else{ // in SRV
+        panelText+="<li class=\"headline"+(checkFlags(0x1200)?" blocking":"")+"\">Generic</li>";
+        panelText+="<li class=\""+(checkFlags(0x200)?" blocking":"hidden")+"\">Cargo Scoop</li>";
+        panelText+="<li class=\""+(checkFlags(0x1000)?" blocking":"hidden")+"\">Handbrake</li>";
+        panelText+="<li class=\"headline"+(checkFlags(0x400000)?" danger":"")+"\">Warnings</li>";
+        panelText+="<li class=\""+(checkFlags(0x400000)?" danger":"hidden")+"\">In danger</li>";
+        //TODO: once this is no longer falsely telling "low fuel" all the time, enable it again
+        //panelText+="<li class=\""+(checkFlags(0x80000)?" danger":"hidden")+"\">Low fuel</li>";
+    }
+    panelText+="</ul></div>\n";
+    return panelText;
+}
+function drawConfigPanel(){
+    var panelText="<div class=\"panel status\"><h1>Configuration</h1><ul>";
+    panelText+="<li class=\"headline "+(autoSwitchViews?"":"inactive")+"\"><a href=\"#\" onclick=\"manualSwitch(-1);\">panel autoswitching "+(autoSwitchViews?"[on]":"[off]")+"</a></li>";
+    panelText+="<li class=\"headline "+(onlyCommanders?"":"inactive")+"\"><a href=\"#\" onclick=\"onlyCommanders=!onlyCommanders;return false;\">show only CMDRs "+(onlyCommanders?"[on]":"[off]")+"</a></li>";
+    panelText+="<li class=\"headline "+(compactEnemyList?"":"inactive")+"\"><a href=\"#\" onclick=\"compactEnemyList=!compactEnemyList;return false;\">compact enemy list "+(compactEnemyList?"[on]":"[off]")+"</a></li>";
+    panelText+="<li class=\"headline "+(showCargoInChatPanel?"":"inactive")+"\"><a href=\"#\" onclick=\"showCargoInChatPanel=!showCargoInChatPanel;return false;\">show cargo in chat panel "+(showCargoInChatPanel?"[on]":"[off]")+"</a></li>";
+    panelText+="</ul></div>\n";
+    return panelText;
+}
+function drawTargetPanel(){
+    var panelText="<div class=\"panel wide ship\"><h1>Current Target</h1>";
+    if(targetShip.length>0)
+    {
+        panelText+="<ul"+(isAttacker(targetShip[1])?" class=\"attacker\"":"")+">";
+        panelText+="<li class=\"ship\">"+targetShip[0]+"</li>"; // ship name
+        if(targetShip.length>5){
+            panelText+="<li class=\"smallbar highlight\" style=\"width:"+targetShip[4].toFixed(0)+"%;\">&nbsp;</li>";
+            panelText+="<li class=\"smallbar\" style=\"width:"+targetShip[5].toFixed(0)+"%;\">&nbsp;</li>";
+        }
+        panelText+="<li class=\"pilot\">"+targetShip[1]; // commander name
+        panelText+=" ("+targetShip[2]+")</li>"; // combat rank
+        if(targetShip[3]!=undefined){panelText+="<li class=\"squadron\">"+targetShip[3]+"</li>";} // squadron
+        if(targetShip.length>7){
+            panelText+="<li class=\"legal"+((targetShip[7]=="Wanted")?" wanted":"")+"\">"+targetShip[7];
+            if(targetShip[7]=="Wanted"){panelText+=" ("+formatNumber(targetShip[8])+"Cr)";}
+            panelText+="</li>";
+        }
+        if(targetModules.length>0){panelText+="<li>Offense</li>";}
+        // weapons
+        for(var k=0;k<targetModules.length;k++){
+            if(isModuleWeapon(targetModules[k])){panelText+="<li class=\"indent\">"+formatModuleName(targetModules[k])+"</li>";}
+        }
+        if(targetModules.length>0){panelText+="<li>Defense</li>";}
+        // defense
+        for(var k=0;k<targetModules.length;k++){
+            if(isModuleDefense(targetModules[k])){panelText+="<li class=\"indent\">"+formatModuleName(targetModules[k])+"</li>";}
+        }
+       if(targetModules.length>0){panelText+="<li>Shields</li>";}
+         // shield
+        for(var k=0;k<targetModules.length;k++){
+            if(isModuleShield(targetModules[k])){panelText+="<li class=\"indent\">"+formatModuleName(targetModules[k])+"</li>";}
+        }
+        panelText+="</ul>";
+    }
+    panelText+="</div>\n";
+    return panelText;
+}
+function drawOldTargetsPanel(){
+    var panelText="<div class=\"panel wide ship\"><h1>Previous Targets</h1>";
+    for(var i=1;i<targetShips.length && i<=(compactEnemyList?8:4);i++)
+    {
+        panelText+="<ul"+(isAttacker(targetShips[i][1])?" class=\"attacker\"":"")+">";
+        if(!compactEnemyList){
+            // full intel
+            // line 1: ship name
+            panelText+="<li class=\"ship\">"+targetShips[i][0]+"</li>"; // ship name
+            // small lines: shield and hull
+            if(targetShips[i].length>5){
+                panelText+="<li class=\"smallbar highlight\" style=\"width:"+targetShips[i][4].toFixed(0)+"%;\">&nbsp;</li>";
+                panelText+="<li class=\"smallbar\" style=\"width:"+targetShips[i][5].toFixed(0)+"%;\">&nbsp;</li>";
+            }
+            // line 2: commander and rank
+            panelText+="<li class=\"pilot\">"+targetShips[i][1]; // commander name
+            panelText+=" ("+targetShips[i][2]+")</li>"; // combat rank
+            // line 3: squadron (if applicable)
+            if(targetShips[i][3]!=undefined){panelText+="<li class=\"squadron\">"+targetShips[i][3]+"</li>";} // squadron
+            // line 4: wanted status and bounty (if applicable)
+            if(targetShips[i].length>7){
+                panelText+="<li class=\"legal"+((targetShips[i][7]=="Wanted")?" wanted":"")+"\">"+targetShips[i][7];
+                if(targetShips[i][7]=="Wanted"){panelText+=" ("+formatNumber(targetShips[i][8])+"Cr)";}
+                panelText+="</li>";
+            }
+        }else{
+            // compact intel
+            // line 1: commander and ship name
+            panelText+="<li class=\"ship\"><b>"+targetShips[i][1]+"</b>"; // commander name
+            if(targetShips[i][3]!=undefined){panelText+=" ("+targetShips[i][3]+")";} // squadron (if applicable)
+            panelText+=" / "+targetShips[i][0]+"</li>"; // ship name
+            // line 2: wanted status and bounty (if applicable)
+            if(targetShips[i].length>7){
+                panelText+="<li class=\"legal"+((targetShips[i][7]=="Wanted")?" wanted":"")+"\">"+targetShips[i][7];
+                if(targetShips[i][7]=="Wanted"){panelText+=" ("+formatNumber(targetShips[i][8])+"Cr)";}
+                panelText+="</li>";
+            }
+        }
+        panelText+="</ul>";
+    }
+    panelText+="</div>\n";
+    return panelText;
+}
+function drawCargoPanel(){
+    cargoWarning=(((cargoCapacity-cargoCapacityUsed)<10)&&currentView==2)?" warn":""; // for mining, warn if less than 10t cargo is left
+    var panelText="<div class=\"panel wide cargo\"><h1>Cargo</h1>";
+    panelText+="<ul><li class=\""+cargoWarning+"\">";
+    panelText+="Cargo capacity: "+cargoCapacityUsed+"/"+cargoCapacity+"<br>";
+    panelText+="</li></ul><div class=\"horizontalBar\">";
+    for(var i=0;i<cargoList.length;i++)
+    {
+        var width = cargoList[i][1]/cargoCapacity*100;
+        panelText+="<div class=\"horizontalBarSegment"+((cargoList[i][0]==mostNonDroneCargo && currentView==2)?" highlight":"")+(cargoList[i][0]!=mostNonDroneCargo?cargoWarning:"")+"\" style=\"width:"+width+"%\"><p>"+cargoList[i][0]+": "+cargoList[i][1]+"</p></div>";
+    }
+    panelText+="</div></div>\n";
+    return panelText;
+}
+function drawProspectorPanel(){
+    var panelText="<div class=\"panel wide cargo\"><h1>Prospector Limpet Controller</h1>";
+    panelText+="<ul><li>";
+    panelText+=prospectorMaterialContent+"&nbsp;";
+    panelText+="</li></ul><div class=\"horizontalBar\">";
+    for(var i=0;i<prospectorList.length;i++)
+    {
+        var width = prospectorList[i][1];
+        panelText+="<div class=\"horizontalBarSegment"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"width:"+width+"%\"><p>"+prospectorList[i][0]+": "+prospectorList[i][1].toFixed(1)+"%</p></div>";
+    }
+    panelText+="</div></div>\n";
+    return panelText;
+}
+function drawHeaderPanel(){
+    var panelText="<div class=\"panel menu\"><ul>";
+    panelText+="<li"+((currentView==0)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(0);\">Chat</a></li>";
+    panelText+="<li"+((currentView==1)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(1);\">Combat / PvP</a></li>";
+    panelText+="<li"+((currentView==2)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(2);\">Mining</a></li>";
+    panelText+="<li"+((currentView==3)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(3);\">Materials</a></li>";
+    panelText+="</ul></div>\n";
+    return panelText;
+}
+function drawChatPanel(additionalSpace){
+    var panelText="<div class=\"panel wide chat\" style=\"height:calc(100vh - 120px - "+additionalSpace+"px);\"><h1>Chat Log</h1><div class=\"scrollbox\"><ul>";
+    var i=0;
+    for(;i<chatLog.length;i++)
+    {
+        panelText+="<li class=\""+chatLog[i][0]+" "+((chatLog[i][0]=="tx")?chatLog[i][1]:"")+" "+chatLog[i][3]+"\"><span>"+chatLog[i][1]+": </span>"+chatLog[i][2]+"</li>";
+    }
+    panelText+="</ul><div id=\"chatAnchor\"></div></div></div>\n";
+    chatPanelJustCreatedAndNeedsAutoscroll=true;
+    return panelText;
+}
+function drawMaterialsPanel(){
+    var panelText="<div class=\"panel wide materials\"><h1>Materials since last docking</h1><ul>";
+    for(var i=0;i<materials.length;i++){
+        if(materialsCollectedSinceLastDocking.includes(materials[i][0])){
+            var matsCount = materials[i][1]+"+"+materials[i][2];
+            var isNewMaterial = (materialsRecentlyCollected.includes(materials[i][0]))?"new":"";
+            panelText+="<li class=\""+isNewMaterial+"\"><span class=\"name\">"+materials[i][0]+"</span><span class=\"count\">"+matsCount+"</span></li>";
+        }
+    }
+    panelText+="</ul></div>\n";
+    return panelText;
+}
+function drawPanelsOnScreen(){
+    var screenText="";
+    screenText+=drawHeaderPanel();
+    screenText+="<div class=\"panelframe\">";
+    screenText+="<div class=\"leftColumn\">";
+    screenText+=drawStatusPanel();
+    screenText+=drawConfigPanel();
+    if(debugStatus){screenText+=drawDebugPanel();}
+    screenText+="</div><div class=\"rightColumn\">";
+    switch(currentView)
+    {
+        case 1: // combat
+            screenText+=drawTargetPanel();
+            screenText+=drawOldTargetsPanel()
+        break;
+        case 2: // asteroidMining
+            screenText+=drawCargoPanel();
+            screenText+=drawProspectorPanel();
+        break;
+        case 3: // materials gathering
+            if(cargoCapacityUsed>0){
+                screenText+=drawCargoPanel();
+            }
+            screenText+=drawMaterialsPanel();
+        break;
+        case 0:default: // defaultFlyScan
+            if(cargoCapacityUsed>0 && showCargoInChatPanel){
+                screenText+=drawCargoPanel();
+                screenText+=drawChatPanel(180);
+            }else{
+                screenText+=drawChatPanel(0);
+            }
+        break
+    }
+    screenText+="</div>";
+    screenText+="</div>";
+    document.getElementById("thebody").innerHTML=screenText;
+    if(chatPanelJustCreatedAndNeedsAutoscroll){
+        document.getElementById("chatAnchor").scrollIntoView();
+        chatPanelJustCreatedAndNeedsAutoscroll=false;
+    }
+}
+
+function updateDataInputSlow(){
+    getJournal();
+    setTimeout(function(){updateDataInputSlow();},1000);
+}
+function updateDataInputFast(){
+    getStatus();
+    getCargo();
+    setTimeout(function(){updateDataInputFast();},250);
+}
+function updateGUI(){
+    drawPanelsOnScreen();
+    autoswitchView();
+    setTimeout(function(){updateGUI();},500);
+}
+
+function init(){
+    updateDataInputSlow();
+    updateDataInputFast();
+    updateGUI();
+}
+
+</script>
+</head>
+<body id="thebody" onload="javascript:init();">
+	<div class="panel">
+		<h1>Loading</h1>
+		<p>Loading</p>
+	</div>
+</body>
+</html>

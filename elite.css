@@ -1,0 +1,286 @@
+body, html{
+	background-color:#000000;
+	color:#ff8c00;
+	font-family: Helvetica, Arial, sans-serif;
+    text-transform: uppercase;
+/*    overflow:hidden;*/
+    width:100%;
+    height:100%;
+    margin:0px;
+    padding:0px;
+    display: flex;
+    flex-direction:column;
+}
+.progressSpinner{
+    border:6px solid #3c1606;
+    border-top:6px solid #ff8c00;
+    border-radius: 50%;
+    width:20px;
+    height:20px;
+    float:left;
+    margin-left:5px;
+}
+.panelframe{
+    float:left;
+    width:100%;
+    flex-shrink:1;
+    display:flex;
+    flex-direction:row;
+}
+.leftColumn, .rightColumn{
+    display: flex;
+    flex-direction:column;
+    height:100%;
+}
+.leftColumn{
+    width: 330px;
+}
+.rightColumn{
+    flex-grow:1;
+}
+.panel{
+	width:310px;
+	min-height:120px;
+    float:left;
+    margin:10px 10px 20px 10px;
+}
+.panel.wide{
+    width:630px;
+}
+.panel.cargo{
+    height:150px;
+    width:calc(100% - 20px);
+}
+
+/* menu */
+.panel.menu{
+    float:left;
+    width:100%;
+    height:42px;
+    min-height:0px;
+	border-top:2px solid #ff8c00;
+	border-bottom:2px solid #ff8c00;
+    margin:10px 0px 20px 0px;
+    flex-shrink:0;
+}
+.panel.menu ul{
+    overflow:hidden;
+    margin:5px 0px 5px 0px;
+    padding:0px;
+}
+.panel.menu ul li{
+    width:25%;
+    float:left;
+    padding: 0px;
+    margin: 0px;
+    border-left:3px solid #000000;
+    text-align:center;
+    line-height:32px;
+    box-sizing: border-box;
+}
+.panel.menu ul li:first-child{
+    border-left:none;
+}
+.panel.menu ul li.active{
+    color:#3c1606;
+    background-color:#ff8c00;
+}
+.panel.menu ul li a{
+    display:block;
+    text-decoration:none;
+    color:#ff8c00;
+}
+.panel.menu ul li.active a{
+    color:#3c1606;
+}
+
+/* chat */
+.panel.chat{
+    text-transform:none;
+    flex-grow:1;
+    width:calc(100% - 20px);
+    margin-left:10px;
+    margin-right:10px;
+    min-height:100px;
+}
+.panel.chat .scrollbox{
+    overflow-y:hidden;
+    height:calc(100% - 40px);
+}
+.panel.chat #chatAnchor{
+    height:1px;
+}
+.panel.chat li span{
+    color:#a05000;
+}
+.panel.chat li.tx{
+    background-image:linear-gradient(to right,#602d00,#3c1606);
+}
+.panel.chat li.rx{
+    background-image:linear-gradient(to right,#3c1606,#602d00);
+}
+.panel.chat li.starsystem{
+    color:#a05000;
+}
+.panel.chat li.local{
+    color:#a05000;
+}
+.panel.chat li.player{
+    color:#ff8c00;
+}
+.panel.chat li.wing{
+    color:#0a8bd6;
+}
+.panel.chat li.squadron{
+    color:#1d8f20;
+}
+.panel.materials{
+    text-transform:none;
+    width:calc(100% - 20px);
+    margin-left:10px;
+    margin-right:10px;
+    min-height:100px;
+}
+.panel.materials li{
+    width:185px;
+    height:18px;
+    float:left;
+    display:flex;
+    margin-right:3px;
+}
+.panel.materials li.new{
+    color:#0a8bd6;
+}
+.panel.materials li span.name{
+    flex-grow:1;
+    overflow:hidden;
+}
+.panel.materials li span.count{
+    flex: 0 0 50px;
+    text-align:right;
+}
+.panel h1, .panel p{
+	margin:0px;
+    font-weight:100;
+}
+.panel h1{
+	border-bottom:2px solid #3c1606;
+	padding:5px 10px 10px 10px;
+    margin: 0px 0px 5px 0px;
+	display:block;
+    font-size:24px;
+    
+}
+.panel p{
+	padding:10px;
+}
+.panel ul, .panel li{
+    margin:0px;
+    padding:0px;
+    list-style-type: none;
+}
+.panel ul{
+    padding: 5px 0px 0px 0px;
+}
+.panel li{
+    padding: 3px 10px 3px 20px;
+    margin: 1px 0px 2px 0px;
+	background-color:#3c1606;
+}
+.panel.ship li.indent{
+    padding-left:35px;
+    text-transform:capitalize;
+}
+
+/* ship panel */
+.panel.ship li.pilot{
+    font-weight:bold;
+}
+.panel.ship li.wanted{
+    color:#ff0000;
+}
+.panel.ship ul.attacker{
+    color:#ff0000;
+}
+
+/* debug panel */
+.panel.debug{
+    overflow:hidden;
+    height:280px;
+}
+
+/* status panel */
+.panel.status{
+    min-height:180px;
+}
+.panel.status li{
+    padding-left:30px;
+}
+.panel.status li a{
+    color:#ff8c00;
+    text-decoration:none;
+    display:block;
+}
+.panel.status li.headline{
+    padding-left:10px;
+}
+.panel.status li.hidden{
+    color:#a05000;
+    display:none;
+}
+.panel.status li.blocking, .panel.status li.blocking a{
+    color:#0a8bd6;
+}
+.panel.status li.inactive, .panel.status li.inactive a{
+    color:#7f7f7f;
+}
+.panel.status li.warn, .panel.status li.warn a{
+    color:#ff0000;
+}
+.panel.status li.danger, .panel.status li.danger a{
+    color:#ff0000;
+    font-weight:bold;
+}
+
+/* target panel */
+.panel li.smallbar{
+    line-height:1px;
+    height:3px;
+    padding:0px;
+    background-color:#ff8c00;
+}
+.panel li.smallbar.highlight{
+    background-color:#0a8bd6;
+}
+
+/* cargo and prospector panel */
+.horizontalBar{
+    background-color: #3c1606;
+    margin:0px;
+    padding:0px;
+    height:48px;
+    overflow:hidden;
+}
+.horizontalBarSegment{
+    border-bottom:8px solid #ff8c00;
+    background-color:#442200;
+    float:left;
+    margin:0px 3px 0px 0px;
+    padding:5px 0px 0px 2px;
+    height:34px;
+    overflow:hidden;
+    white-space:nowrap;
+}
+.horizontalBarSegment.highlight{
+    border-bottom:8px solid #0a8bd6;
+    color:#0a8bd6;
+    background-color:#002244;
+}
+.horizontalBarSegment.warn{
+    border-bottom:8px solid #ff0000;
+    color:#ff0000;
+    background-color:#550000;
+}
+.panel .horizontalBarSegment p{
+    padding:3px;
+}
