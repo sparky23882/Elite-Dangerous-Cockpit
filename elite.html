@@ -199,7 +199,7 @@ function updateTargetShips(){
                         }
                         if(!shipKnown)
                         {
-                            if(!onlyCommanders || (onlyCommanders && ship[1].startsWith("KDT")))
+                            if(!onlyCommanders || (onlyCommanders && ship[1].startsWith("KDT")) || (onlyCommanders && ship[1].startsWith("CMDR")))
                             {
                                 if(!isFirstShip){
                                     /* past targets */
