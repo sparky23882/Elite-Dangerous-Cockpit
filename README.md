@@ -9,3 +9,4 @@ Cockpit panel for external monitors
 # Usage
 Open elite.html in Browser not by double-clicking the file, but through the webserver.
 http://LOCALHOST_OR_IP/elite.html for example.
+
