@@ -1,5 +1,5 @@
 # Elite-Dangerous-Cockpit
-Cockpit panel for external monitors
+Cockpit panel for external monitors. Monitors and reads your local journal files of Elite Dangerous and displays the data it finds there.
 
 # Installation
 - Install a local webserver that is PHP-ready
