@@ -11,6 +11,15 @@ Open elite.html in Browser not by double-clicking the file, but through the webs
 http://LOCALHOST_OR_IP/elite.html for example.
 
 # Screenshots
+## Header
+In autoswitch mode, the view is chosen by what is happening in the game. You can manually select a view by clicking its header.
+![header](../master/screenshots/header.jpg?raw=true)
+## Status
+The status view shows problems with FSD availability (landing gear, hardpoints, FSD cooldown etc.) and warnings (low fuel, overheating, speeding near station, ...).
+![status](../master/screenshots/status.jpg?raw=true)
+## Configuration
+Here, you can re-enable autoswitching views if you manually selected a view, choose whether your combat view filters out NPCs and other options.
+![configuration](../master/screenshots/config.jpg?raw=true)
 ## Compact Combat View
 The compact view shows more "previous targets" at a time by removing some information and condensing the rest in two lines.
 ![combatCompactView](../master/screenshots/combatCompactView.JPG?raw=true)
