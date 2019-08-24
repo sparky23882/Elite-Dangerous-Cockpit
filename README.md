@@ -11,4 +11,7 @@ Open elite.html in Browser not by double-clicking the file, but through the webs
 http://LOCALHOST_OR_IP/elite.html for example.
 
 # Screenshots
-![combatCompactView](../blob/master/screenshots/combatCompactView.JPG?raw=true)
+![combatCompactView](../master/screenshots/combatCompactView.JPG?raw=true)
+![combatCompactView](../master/screenshots/combatLongView.JPG?raw=true)
+![combatCompactView](../master/screenshots/materialsView.JPG?raw=true)
+![combatCompactView](../master/screenshots/miningView.JPG?raw=true)
