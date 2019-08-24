@@ -10,3 +10,5 @@ Cockpit panel for external monitors
 Open elite.html in Browser not by double-clicking the file, but through the webserver.
 http://LOCALHOST_OR_IP/elite.html for example.
 
+# Screenshots
+![combatCompactView](/sparky23882/Elite-Dangerous-Cockpit/blob/master/screenshots/combatCompactView.JPG?raw=true "Compact Combat View")
