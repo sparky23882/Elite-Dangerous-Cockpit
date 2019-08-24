@@ -33,7 +33,6 @@ Usage:
 ----------------------------------------------------------------------------------------------------
 
 //-->
-<meta http-equiv="refresh" content="300" /><!-- sometimes, javascript can block the browser and the panel won't update anymore -->
 <title>Elite Dangerous Cockpit</title>
 <link rel="stylesheet" type="text/css" href="elite.css">
 <script type="text/JavaScript">
@@ -542,7 +541,7 @@ function drawStatusPanel(){
     return panelText;
 }
 function drawConfigPanel(){
-    var panelText="<div class=\"panel status\"><h1>Configuration</h1><ul>";
+    var panelText="<div class=\"panel config\"><h1>Configuration</h1><ul>";
     panelText+="<li class=\"headline "+(autoSwitchViews?"":"inactive")+"\"><a href=\"#\" onclick=\"manualSwitch(-1);\">panel autoswitching "+(autoSwitchViews?"[on]":"[off]")+"</a></li>";
     panelText+="<li class=\"headline "+(onlyCommanders?"":"inactive")+"\"><a href=\"#\" onclick=\"onlyCommanders=!onlyCommanders;return false;\">show only CMDRs "+(onlyCommanders?"[on]":"[off]")+"</a></li>";
     panelText+="<li class=\"headline "+(compactEnemyList?"":"inactive")+"\"><a href=\"#\" onclick=\"compactEnemyList=!compactEnemyList;return false;\">compact enemy list "+(compactEnemyList?"[on]":"[off]")+"</a></li>";
@@ -659,7 +658,7 @@ function drawProspectorPanel(){
     return panelText;
 }
 function drawHeaderPanel(){
-    var panelText="<div class=\"panel menu\"><ul>";
+    var panelText="<div class=\"panel menu\" id=\"headerPanel\"><ul>";
     panelText+="<li"+((currentView==0)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(0);\">Chat</a></li>";
     panelText+="<li"+((currentView==1)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(1);\">Combat / PvP</a></li>";
     panelText+="<li"+((currentView==2)?" class=\"active\"":"")+"><a href=\"#\" onclick=\"manualSwitch(2);\">Mining</a></li>";
@@ -731,6 +730,7 @@ function drawPanelsOnScreen(){
         document.getElementById("chatAnchor").scrollIntoView();
         chatPanelJustCreatedAndNeedsAutoscroll=false;
     }
+    document.getElementById("headerPanel").scrollIntoView();
 }
 
 function updateDataInputSlow(){
@@ -743,8 +743,8 @@ function updateDataInputFast(){
     setTimeout(function(){updateDataInputFast();},250);
 }
 function updateGUI(){
-    drawPanelsOnScreen();
     autoswitchView();
+    drawPanelsOnScreen();
     setTimeout(function(){updateGUI();},500);
 }
 
