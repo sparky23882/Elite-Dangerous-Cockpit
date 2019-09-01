@@ -35,6 +35,7 @@ Usage:
 //-->
 <title>Elite Dangerous Cockpit</title>
 <link rel="stylesheet" type="text/css" href="elite.css">
+<script type="text/JavaScript" src="elite_ships.js"></script>
 <script type="text/JavaScript">
 
 // debug variable for text output
@@ -172,7 +173,7 @@ function updateTargetShips(){
                 if(journalEntry.event=="ShipTargeted" && journalEntry.TargetLocked) // is the entry a ship?
                 {
                     var ship = new Array();
-                    if(journalEntry.hasOwnProperty("Ship_Localised")){ship = [journalEntry.Ship_Localised];}else{ship = [journalEntry.Ship];}
+                    ship = [journalEntry.Ship];
                     if(journalEntry.ScanStage>=1) // do we have pilot and squadron name?
                     {
                         ship.push(journalEntry.PilotName_Localised);
@@ -232,11 +233,16 @@ function updateTargetShips(){
                                 if(!moduleKnown){
                                     // filter out uninteresting modules that every ship has
                                     if(journalEntry.Subsystem.search("ext_drive")==-1
-                                    && journalEntry.Subsystem.search("hyperdrive")==-1
-                                    && journalEntry.Subsystem.search("lifesupport")==-1
-                                    && journalEntry.Subsystem.search("powerdistributor")==-1
-                                    && journalEntry.Subsystem.search("powerplant")==-1
-                                    && journalEntry.Subsystem.search("modularcargobaydoor")==-1){
+                                    && journalEntry.Subsystem.search("int_hyperdrive")==-1
+                                    && journalEntry.Subsystem.search("int_lifesupport")==-1
+                                    && journalEntry.Subsystem.search("int_powerdistributor")==-1
+                                    && journalEntry.Subsystem.search("int_powerplant")==-1
+                                    && journalEntry.Subsystem.search("modularcargobaydoor")==-1
+                                    && journalEntry.Subsystem.search("int_fuelscoop")==-1
+                                    && journalEntry.Subsystem.search("int_guardianfsdbooster")==-1
+                                    && journalEntry.Subsystem.search("int_supercruiseassist")==-1
+                                    && journalEntry.Subsystem.search("int_dockingcomputer")==-1
+                                    ){
                                         tmpTargetModules.push(journalEntry.Subsystem);
                                         tmpTargetModules.sort();
                                     }
@@ -273,28 +279,6 @@ function formatModuleName(modulename){
     }
     return modulenameFormatted;
 }
-function isModuleWeapon(modulename){
-    var tmp = modulename.split("_");
-    if((tmp[2]=="fixed" || tmp[2]=="gimbal" || tmp[2]=="turret")
-        && (tmp[3]=="small" || tmp[3]=="medium" || tmp[3]=="large" || tmp[3]=="huge")){
-        return true;
-    }
-    return false;
-}
-function isModuleDefense(modulename){
-    var tmp = modulename.split("_");
-    if(tmp[2]=="tiny"){
-        return true;
-    }
-    return false;
-}
-function isModuleShield(modulename){
-    var tmp = modulename.split("_");
-    if(tmp[1].indexOf("shield")!=-1){
-        return true;
-    }
-    return false;
-}
 function updateAttackers(){
     var attackers = new Array();
     for(var i=journal.length-1;i>0;i--)
@@ -306,6 +290,14 @@ function updateAttackers(){
                 if(journalEntry.event=="CrimeVictim")
                 {
                     attackers.push(journalEntry.Offender);
+                }
+                if(journalEntry.event=="Interdicted")
+                {
+                    attackers.push(journalEntry.Interdictor);
+                }
+                if(journalEntry.event=="Died")
+                {
+                    attackers.push(journalEntry.KillerName);
                 }
             }catch(e){
                 debug+="Attackers invalid JSON<br>";
@@ -550,11 +542,11 @@ function drawConfigPanel(){
     return panelText;
 }
 function drawTargetPanel(){
-    var panelText="<div class=\"panel wide ship\"><h1>Current Target</h1>";
+    var panelText="<div class=\"panel fullwidth ship\"><h1>Current Target</h1>";
     if(targetShip.length>0)
     {
         panelText+="<ul"+(isAttacker(targetShip[1])?" class=\"attacker\"":"")+">";
-        panelText+="<li class=\"ship\">"+targetShip[0]+"</li>"; // ship name
+        panelText+="<li class=\"ship\">"+getShipName(targetShip[0])+"</li>"; // ship name
         if(targetShip.length>5){
             panelText+="<li class=\"smallbar highlight\" style=\"width:"+targetShip[4].toFixed(0)+"%;\">&nbsp;</li>";
             panelText+="<li class=\"smallbar\" style=\"width:"+targetShip[5].toFixed(0)+"%;\">&nbsp;</li>";
@@ -567,20 +559,82 @@ function drawTargetPanel(){
             if(targetShip[7]=="Wanted"){panelText+=" ("+formatNumber(targetShip[8])+"Cr)";}
             panelText+="</li>";
         }
-        if(targetModules.length>0){panelText+="<li>Offense</li>";}
-        // weapons
-        for(var k=0;k<targetModules.length;k++){
-            if(isModuleWeapon(targetModules[k])){panelText+="<li class=\"indent\">"+formatModuleName(targetModules[k])+"</li>";}
-        }
-        if(targetModules.length>0){panelText+="<li>Defense</li>";}
-        // defense
-        for(var k=0;k<targetModules.length;k++){
-            if(isModuleDefense(targetModules[k])){panelText+="<li class=\"indent\">"+formatModuleName(targetModules[k])+"</li>";}
-        }
-       if(targetModules.length>0){panelText+="<li>Shields</li>";}
-         // shield
-        for(var k=0;k<targetModules.length;k++){
-            if(isModuleShield(targetModules[k])){panelText+="<li class=\"indent\">"+formatModuleName(targetModules[k])+"</li>";}
+        if(targetModules.length>0){
+            // show scanned modules for this ship
+            panelText+="<li class=\"headline bars\" style=\"margin-top:10px;\">Offense</li>";
+            // Weapons, Interdictor, Fighters.
+            var hHp=getHugeHardpoints(targetModules);
+            if(hHp.length>0){
+                var highlight="";
+                panelText+="<li class=\"modules\"><span class=\"title\">Huge</span>";
+                for(var k=0;k<hHp.length;k++){
+                    if(hHp[k].search("torp")!=-1){highlight=" class=\"highlight\"";}
+                    panelText+="<span"+highlight+">"+hHp[k]+"</span>";
+                }
+                panelText+="</li>";
+            }
+            
+            var lHp=getLargeHardpoints(targetModules);
+            if(lHp.length>0){
+                var highlight="";
+                panelText+="<li class=\"modules\"><span class=\"title\">Large</span>";
+                for(var k=0;k<lHp.length;k++){
+                    if(lHp[k].search("torp")!=-1){highlight=" class=\"highlight\"";}
+                    panelText+="<span"+highlight+">"+lHp[k]+"</span>";
+                }
+                panelText+="</li>";
+            }
+            
+            var mHp=getMediumHardpoints(targetModules);
+            if(mHp.length>0){
+                var highlight="";
+                panelText+="<li class=\"modules\"><span class=\"title\">Medium</span>";
+                for(var k=0;k<mHp.length;k++){
+                    if(mHp[k].search("torp")!=-1){highlight=" class=\"highlight\"";}
+                    panelText+="<span"+highlight+">"+mHp[k]+"</span>";
+                }
+                panelText+="</li>";
+            }
+            
+            var sHp=getSmallHardpoints(targetModules);
+            if(sHp.length>0){
+                var highlight="";
+                panelText+="<li class=\"modules\"><span class=\"title\">Small</span>";
+                for(var k=0;k<sHp.length;k++){
+                    if(sHp[k].search("torp")!=-1){highlight=" class=\"highlight\"";}
+                    panelText+="<span"+highlight+">"+sHp[k]+"</span>";
+                }
+                panelText+="</li>";
+            }
+            
+            panelText+="<li class=\"headline\">Defense</li>";
+            // Shields, Reinforcements, Countermeasures.
+            var shieldModules=getShieldModules(targetModules);
+            if(shieldModules.length>0){
+                panelText+="<li class=\"modules\"><span class=\"title\">Shield</span>";
+                for(var k=0;k<shieldModules.length;k++){panelText+="<span>"+shieldModules[k]+"</span>";}
+                panelText+="</li>";
+            }
+            
+            var combatModules=getOtherCombatModules(targetModules);
+            if(combatModules.length>0){
+                var highlight="";
+                panelText+="<li class=\"modules\"><span class=\"title\">Other</span>";
+                for(var k=0;k<combatModules.length;k++){
+                    if(combatModules[k].search("fighterbay")!=-1 || combatModules[k].search("fsdinterdictor")!=-1){highlight=" class=\"highlight\"";}
+                    panelText+="<span"+highlight+">"+combatModules[k]+"</span>";
+                }
+                panelText+="</li>";
+            }
+            
+            panelText+="<li class=\"headline\">Others</li>";
+            // Refinery, Drones, Scanners.
+            var combatModules=getMiscModules(targetModules);
+            if(combatModules.length>0){
+                panelText+="<li class=\"modules\"><span class=\"title\">Other</span>";
+                for(var k=0;k<combatModules.length;k++){panelText+="<span>"+combatModules[k]+"</span>";}
+                panelText+="</li>";
+            }
         }
         panelText+="</ul>";
     }
@@ -588,42 +642,51 @@ function drawTargetPanel(){
     return panelText;
 }
 function drawOldTargetsPanel(){
-    var panelText="<div class=\"panel wide ship\"><h1>Previous Targets</h1>";
-    for(var i=1;i<targetShips.length && i<=(compactEnemyList?8:4);i++)
+    var panelText="<div class=\"panel fullwidth ship\"><h1>Previous Targets</h1>";
+    for(var i=1;i<targetShips.length && i<=30;i++)
     {
-        panelText+="<ul"+(isAttacker(targetShips[i][1])?" class=\"attacker\"":"")+">";
+        panelText+="<ul class=\"prevTargets"+(isAttacker(targetShips[i][1])?" attacker":"")+(compactEnemyList?" compact":"")+"\">";
         if(!compactEnemyList){
             // full intel
-            // line 1: ship name
-            panelText+="<li class=\"ship\">"+targetShips[i][0]+"</li>"; // ship name
-            // small lines: shield and hull
-            if(targetShips[i].length>5){
-                panelText+="<li class=\"smallbar highlight\" style=\"width:"+targetShips[i][4].toFixed(0)+"%;\">&nbsp;</li>";
-                panelText+="<li class=\"smallbar\" style=\"width:"+targetShips[i][5].toFixed(0)+"%;\">&nbsp;</li>";
-            }
-            // line 2: commander and rank
-            panelText+="<li class=\"pilot\">"+targetShips[i][1]; // commander name
+            // line 1: commander and rank
+            panelText+="<li class=\"pilot headline\">"+targetShips[i][1]; // commander name
             panelText+=" ("+targetShips[i][2]+")</li>"; // combat rank
+            // line 2: ship name
+            panelText+="<li class=\"ship\">"+getShipName(targetShips[i][0])+"</li>"; // ship name
             // line 3: squadron (if applicable)
-            if(targetShips[i][3]!=undefined){panelText+="<li class=\"squadron\">"+targetShips[i][3]+"</li>";} // squadron
+            panelText+="<li class=\"squadron\">";
+            if(targetShips[i][3]!=undefined){
+                panelText+=targetShips[i][3]; // squadron
+            }else{
+                panelText+="?";
+            }
+            panelText+="</li>";
             // line 4: wanted status and bounty (if applicable)
             if(targetShips[i].length>7){
                 panelText+="<li class=\"legal"+((targetShips[i][7]=="Wanted")?" wanted":"")+"\">"+targetShips[i][7];
                 if(targetShips[i][7]=="Wanted"){panelText+=" ("+formatNumber(targetShips[i][8])+"Cr)";}
                 panelText+="</li>";
+            }else{
+                panelText+="<li class=\"legal\">?</li>";
             }
         }else{
             // compact intel
-            // line 1: commander and ship name
-            panelText+="<li class=\"ship\"><b>"+targetShips[i][1]+"</b>"; // commander name
+            // line 1: commander and squadron
+            panelText+="<li class=\"headline\"><b>"+targetShips[i][1]+"</b>"; // commander name
             if(targetShips[i][3]!=undefined){panelText+=" ("+targetShips[i][3]+")";} // squadron (if applicable)
-            panelText+=" / "+targetShips[i][0]+"</li>"; // ship name
-            // line 2: wanted status and bounty (if applicable)
+            // line 2: ship name, wanted status and bounty (if applicable)
+            var wantedClass="";
+            var wantedText="";
             if(targetShips[i].length>7){
-                panelText+="<li class=\"legal"+((targetShips[i][7]=="Wanted")?" wanted":"")+"\">"+targetShips[i][7];
-                if(targetShips[i][7]=="Wanted"){panelText+=" ("+formatNumber(targetShips[i][8])+"Cr)";}
-                panelText+="</li>";
+                wantedClass=((targetShips[i][7]=="Wanted")?" wanted":"");
+                wantedText=" / ";
+                if(targetShips[i][7]=="Wanted"){
+                    wantedText+=""+formatNumber(targetShips[i][8])+"Cr";
+                }else{
+                    wantedText+=targetShips[i][7];
+                }
             }
+            panelText+="<li class=\"legal"+wantedClass+"\">"+getShipName(targetShips[i][0])+wantedText+"</li>";
         }
         panelText+="</ul>";
     }
@@ -631,16 +694,18 @@ function drawOldTargetsPanel(){
     return panelText;
 }
 function drawCargoPanel(){
-    cargoWarning=(((cargoCapacity-cargoCapacityUsed)<10)&&currentView==2)?" warn":""; // for mining, warn if less than 10t cargo is left
+ // for mining, warn if less than 10t cargo is left
     var panelText="<div class=\"panel wide cargo\"><h1>Cargo</h1>";
-    panelText+="<ul><li class=\""+cargoWarning+"\">";
+    panelText+="<ul><li class=\"\">";
     panelText+="Cargo capacity: "+cargoCapacityUsed+"/"+cargoCapacity+"<br>";
     panelText+="</li></ul><div class=\"horizontalBar\">";
     for(var i=0;i<cargoList.length;i++)
     {
         var width = cargoList[i][1]/cargoCapacity*100;
-        panelText+="<div class=\"horizontalBarSegment"+((cargoList[i][0]==mostNonDroneCargo && currentView==2)?" highlight":"")+(cargoList[i][0]!=mostNonDroneCargo?cargoWarning:"")+"\" style=\"width:"+width+"%\"><p>"+cargoList[i][0]+": "+cargoList[i][1]+"</p></div>";
+        panelText+="<div class=\"horizontalBarSegment"+((cargoList[i][0]==mostNonDroneCargo && currentView==2)?" highlight":"")+"\" style=\"flex-grow:"+width+";\"><p>"+cargoList[i][0]+": "+cargoList[i][1]+"</p></div>";
     }
+    // add empty element
+    panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+(100-((cargoCapacityUsed/cargoCapacity)*100))+";\">&nbsp;</div>";
     panelText+="</div></div>\n";
     return panelText;
 }
@@ -649,11 +714,15 @@ function drawProspectorPanel(){
     panelText+="<ul><li>";
     panelText+=prospectorMaterialContent+"&nbsp;";
     panelText+="</li></ul><div class=\"horizontalBar\">";
+    emptyWidth=100;
     for(var i=0;i<prospectorList.length;i++)
     {
         var width = prospectorList[i][1];
-        panelText+="<div class=\"horizontalBarSegment"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"width:"+width+"%\"><p>"+prospectorList[i][0]+": "+prospectorList[i][1].toFixed(1)+"%</p></div>";
+        emptyWidth-=width;
+        panelText+="<div class=\"horizontalBarSegment"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"flex-grow:"+width+";\"><p>"+prospectorList[i][0]+": "+prospectorList[i][1].toFixed(1)+"%</p></div>";
     }
+    // add empty element
+    panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
     panelText+="</div></div>\n";
     return panelText;
 }
