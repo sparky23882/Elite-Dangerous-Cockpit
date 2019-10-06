@@ -56,6 +56,9 @@ var compactEnemyList=false;
 // show cargo in chat panel
 var showCargoInChatPanel=true;
 
+// show expected yield instead of percentages for prospector
+var prospectorShowYield=true;
+
 // data
 var flags=0;
 var journal=new Array();
@@ -538,6 +541,7 @@ function drawConfigPanel(){
     panelText+="<li class=\"headline "+(onlyCommanders?"":"inactive")+"\"><a href=\"#\" onclick=\"onlyCommanders=!onlyCommanders;return false;\">show only CMDRs "+(onlyCommanders?"[on]":"[off]")+"</a></li>";
     panelText+="<li class=\"headline "+(compactEnemyList?"":"inactive")+"\"><a href=\"#\" onclick=\"compactEnemyList=!compactEnemyList;return false;\">compact enemy list "+(compactEnemyList?"[on]":"[off]")+"</a></li>";
     panelText+="<li class=\"headline "+(showCargoInChatPanel?"":"inactive")+"\"><a href=\"#\" onclick=\"showCargoInChatPanel=!showCargoInChatPanel;return false;\">show cargo in chat panel "+(showCargoInChatPanel?"[on]":"[off]")+"</a></li>";
+    panelText+="<li class=\"headline "+(prospectorShowYield?"":"inactive")+"\"><a href=\"#\" onclick=\"prospectorShowYield=!prospectorShowYield;return false;\">show prospector yield "+(prospectorShowYield?"[on]":"[off]")+"</a></li>";
     panelText+="</ul></div>\n";
     return panelText;
 }
@@ -711,19 +715,48 @@ function drawCargoPanel(){
 }
 function drawProspectorPanel(){
     var panelText="<div class=\"panel wide cargo\"><h1>Prospector Limpet Controller</h1>";
-    panelText+="<ul><li>";
-    panelText+=prospectorMaterialContent+"&nbsp;";
-    panelText+="</li></ul><div class=\"horizontalBar\">";
-    emptyWidth=100;
-    for(var i=0;i<prospectorList.length;i++)
-    {
-        var width = prospectorList[i][1];
-        emptyWidth-=width;
-        panelText+="<div class=\"horizontalBarSegment"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"flex-grow:"+width+";\"><p>"+prospectorList[i][0]+": "+prospectorList[i][1].toFixed(1)+"%</p></div>";
+    if(!prospectorShowYield){
+        // show percentages from limpet drone controller
+        panelText+="<ul><li>";
+        panelText+=prospectorMaterialContent+"&nbsp;";
+        panelText+="</li></ul><div class=\"horizontalBar\">";
+        var emptyWidth=100;
+        for(var i=0;i<prospectorList.length;i++)
+        {
+            var width = prospectorList[i][1];
+            emptyWidth-=width;
+            panelText+="<div class=\"horizontalBarSegment"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"flex-grow:"+width+";\"><p>"+prospectorList[i][0]+": "+prospectorList[i][1].toFixed(1)+"%</p></div>";
+        }
+        // add empty element
+        panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
+        panelText+="</div>\n";
+    }else{
+        // show estimated yield
+        panelText+="<ul><li>Estimated Yield</li></ul>";
+        var tonnesFactor = 0;
+        if(prospectorList.length == 1){tonnesFactor = 0.29;}
+        if(prospectorList.length == 2){tonnesFactor = 0.255;}
+        if(prospectorList.length == 3){tonnesFactor = 0.16;}
+        for(var i=0;i<prospectorList.length;i++)
+        {
+            var tonnesEstimate = prospectorList[i][1].toFixed(2) * tonnesFactor;
+            var width = tonnesEstimate;
+            tonnesEstimate = Math.floor(tonnesEstimate);
+            var emptyWidth=20;
+            emptyWidth-=width;
+            // (1) text field only
+            panelText+="<div class=\"horizontalBar overflow"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\">";
+            panelText+="<div class=\"horizontalBarSegment overflow"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"flex-grow:"+width+";\"><p>"+prospectorList[i][0]+": "+tonnesEstimate+"</p></div>";
+            panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
+            panelText+="</div>\n";
+            // (2) separate border
+            panelText+="<div class=\"horizontalBar overflowBorder"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\">";
+            panelText+="<div class=\"horizontalBarSegment overflowBorder"+(prospectorList[i][0].toLowerCase()==mostNonDroneCargo?" highlight":"")+"\" style=\"flex-grow:"+width+";\">&nbsp;</div>";
+            panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
+            panelText+="</div>\n";
+        }
     }
-    // add empty element
-    panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
-    panelText+="</div></div>\n";
+    panelText+="</div>\n";
     return panelText;
 }
 function drawHeaderPanel(){

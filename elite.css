@@ -315,13 +315,31 @@ body, html{
 /* cargo and prospector panel */
 .horizontalBar{
     background-color: #3c1606;
-    margin:0px;
+    margin:0px 0px 2px 0px;
     padding:0px;
     height:48px;
     overflow:hidden;
     display:flex;
     flex-direction:row;
     flex-wrap:nowrap;
+}
+.horizontalBar.overflow{
+    height:40px;
+    margin:0px;
+}
+.horizontalBar.overflowBorder{
+    height:8px;
+    margin:0px 0px 2px 0px;
+    font-size:1px;
+}
+.horizontalBarSegment.overflowBorder{
+    border:none;
+    height:8px;
+    font-size:1px;
+    background-color:#ff8c00;
+}
+.horizontalBarSegment.highlight.overflowBorder{
+    background-color:#0a8bd6;
 }
 .horizontalBarSegment{
     border-bottom:8px solid #ff8c00;
@@ -332,6 +350,16 @@ body, html{
     overflow:hidden;
     white-space:nowrap;
     flex-basis:3px;
+}
+.horizontalBarSegment.overflow{
+    border:none;
+    margin:0px;
+    height:34px;
+    overflow:visible;
+}
+.horizontalBarSegment.highlight.overflow{
+    border:none;
+    overflow:visible;
 }
 .horizontalBarSegment.highlight{
     border-bottom:8px solid #0a8bd6;
