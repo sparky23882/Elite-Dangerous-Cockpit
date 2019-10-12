@@ -29,6 +29,9 @@ The long view is a bit cleaner and also shows shield and hull of the scanned shi
 ## Mining View
 The mining view takes the largest amount of non-drone cargo and highlights it both in cargo and in the list of materials the prospector limpet found. Widths are to scale, so you can see at a glimpse if what you are searching for is in the last scanned asteroid, and how much of it.Prospector Limpets don't need to be targeted for this.
 ![miningView](../master/screenshots/miningView.JPG?raw=true)
+## Mining Yield Estimation
+If activated, the mining view can estimate the yield of a scanned asteroid and show the individual expected tons of all of the asteroid's contents instead of their percentage. This view also calculates a running estimate on how much of your main content the asteroid should at least have for you to mine it. Based on a few assumptions (mining an asteroid takes 6x as long as just prospecting it, you continuously mine in only one spot during a single Elite session). The suggested minimum is different for every hotspot and gets better with each asteroid mined, up to 100 asteroids within your current session are used for that analysis.
+![miningViewYield](../master/screenshots/miningViewYield.JPG?raw=true)
 ## Materials View
 The materials view shows what was picked up since the last full materials journal entry, usually when docking or switching ships. Blue are materials picked up within the last minute.
 ![materialsView](../master/screenshots/materialsView.JPG?raw=true)
