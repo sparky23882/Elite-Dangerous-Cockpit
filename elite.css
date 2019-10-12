@@ -249,7 +249,7 @@ body, html{
 /* debug panel */
 .panel.debug{
     overflow:hidden;
-    height:280px;
+    min-height:280px;
 }
 
 /* status panel */

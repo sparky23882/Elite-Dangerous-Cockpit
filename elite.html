@@ -59,6 +59,9 @@ var showCargoInChatPanel=true;
 // show expected yield instead of percentages for prospector
 var prospectorShowYield=true;
 
+// mine all asteroids with at least this much expected yield
+var miningBestCutoff=0;
+
 // data
 var flags=0;
 var journal=new Array();
@@ -146,6 +149,7 @@ function parseJournal(journalText){
     updateAttackers();
     updateCargo();
     updateProspectorList();
+    updateProspectorEstimates();
     updateChatLog();
     updateMaterials();
 }
@@ -366,6 +370,79 @@ function updateProspectorList(){
         }
     }
     prospectorList = list;
+}
+function updateProspectorEstimates(){
+    // takes last "n" scans and estimates which minimum yield to take and which asteroids to skip
+    var list = new Array();
+    var listElementsCount=0;
+    for(var i=journal.length-1;i>0;i--)
+    {
+        if(journal[i].length>5) // just to make sure we actually have data for JSON.parse
+        {
+            try{ // catch erroneous JSON
+                var journalEntry = JSON.parse(journal[i]);
+                if(journalEntry.event=="ProspectedAsteroid")
+                {
+                    var hasInterestingMaterial=false;
+                    var numMaterials=0;
+                    var proportionTmp=0;
+                    for(var k=0;k<journalEntry.Materials.length;k++)
+                    {
+                        numMaterials++;
+                        if(mostNonDroneCargo==journalEntry.Materials[k].Name.toLowerCase()){
+                            proportionTmp=journalEntry.Materials[k].Proportion;
+                            hasInterestingMaterial=true;
+                        }
+                    }
+                    if(hasInterestingMaterial){
+                        list.push(estimateProspectorTonnes(numMaterials,proportionTmp));
+                    }else{
+                        list.push(0);
+                    }
+                    listElementsCount++;
+                    if(listElementsCount>=100){break;}
+                }
+            }catch(e){
+                debug+="Prospector Estimates invalid JSON<br>";
+            }
+        }
+    }
+    // now analyze the best cutoff
+    // let's assume scanning & mining an asteroid takes 6x the time it takes to only scan it
+    var bestCutoff=0;
+    var yieldPerTime=0;
+    for(var k=1;k<20;k++){ // loop over possible cutoffs
+        var yieldSum=0;
+        var timeSum=0;
+        for(m=0;m<list.length;m++){ // loop over scanned asteroids
+            if(list[m]>0){
+                // wanted material is present
+                if(list[m]>=k){
+                    // over cutoff: count it
+                    yieldSum+=list[m];
+                    timeSum+=6;
+                }else{
+                    timeSum+=1;
+                }
+            }else{
+                // wanted material is absent
+                timeSum+=1;
+            }
+        }
+        var yieldPerTimeTemp=yieldSum/timeSum;
+        if(yieldPerTimeTemp>yieldPerTime){
+            bestCutoff=k;
+            yieldPerTime=yieldPerTimeTemp;
+        }
+    }
+    miningBestCutoff=bestCutoff;
+}
+function estimateProspectorTonnes(numMaterials,percentage){
+    var tonnesFactor = 0;
+    if(numMaterials == 1){tonnesFactor = 0.29;}
+    if(numMaterials == 2){tonnesFactor = 0.255;}
+    if(numMaterials == 3){tonnesFactor = 0.16;}
+    return percentage * tonnesFactor;
 }
 function updateChatLog(){
     var list = new Array();
@@ -733,13 +810,24 @@ function drawProspectorPanel(){
     }else{
         // show estimated yield
         panelText+="<ul><li>Estimated Yield</li></ul>";
-        var tonnesFactor = 0;
-        if(prospectorList.length == 1){tonnesFactor = 0.29;}
-        if(prospectorList.length == 2){tonnesFactor = 0.255;}
-        if(prospectorList.length == 3){tonnesFactor = 0.16;}
+        if(miningBestCutoff>0){
+            var width = miningBestCutoff;
+            var emptyWidth=20;
+            emptyWidth-=width;
+            // (1) text field only
+            panelText+="<div class=\"horizontalBar overflow\">";
+            panelText+="<div class=\"horizontalBarSegment overflow\" style=\"flex-grow:"+width+";\"><p>Ideal minimum yield: "+miningBestCutoff+"</p></div>";
+            panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
+            panelText+="</div>\n";
+            // (2) separate border
+            panelText+="<div class=\"horizontalBar overflowBorder\">";
+            panelText+="<div class=\"horizontalBarSegment overflowBorder\" style=\"flex-grow:"+width+";\">&nbsp;</div>";
+            panelText+="<div class=\"horizontalBarSegment empty\" style=\"flex-grow:"+emptyWidth+";\">&nbsp;</div>";
+            panelText+="</div>\n";
+        }
         for(var i=0;i<prospectorList.length;i++)
         {
-            var tonnesEstimate = prospectorList[i][1].toFixed(2) * tonnesFactor;
+            var tonnesEstimate = estimateProspectorTonnes(prospectorList.length,prospectorList[i][1]);
             var width = tonnesEstimate;
             tonnesEstimate = Math.floor(tonnesEstimate);
             var emptyWidth=20;
