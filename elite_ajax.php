@@ -17,7 +17,7 @@ Version History and further info: see elite.html
 
 // configuration of local journal folder
 // example: "C:\Users\<yourWindowsUserName>\Saved Games\Frontier Developments\Elite Dangerous"
-$journalFolder="C:\Users\YOUR_USERNAME_GOES_HERE\Saved Games\Frontier Developments\Elite Dangerous";
+$journalFolder="C:\Users\<yourWindowsUserName>\Saved Games\Frontier Developments\Elite Dangerous";
 
 // do not modify code below
 
@@ -28,7 +28,10 @@ $journalFilePath="";
 $files=scandir($journalFolder,SCANDIR_SORT_DESCENDING);
 for($i=0;$i<count($files);$i++)
 {
-    if(strpos($files[$i],"Journal.")!==false)
+//    if(strpos($files[$i],"Journal.")!==false)
+    // match the filename
+    $pattern = "/Journal\.([0-9]{4,4})\-([0-9]{2,2})\-([0-9]{2,2}).*/i";
+    if(preg_match($pattern, $files[$i])==1)
     {
         $journalFilePath=$journalFolder."\\".$files[$i];
         break;

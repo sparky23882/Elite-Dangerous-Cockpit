@@ -94,7 +94,7 @@ function parseStatus(statusJson){
         flags = statusObj.Flags;
         speeding=(statusObj.LegalState=="Speeding");
     }catch(e){
-        debug+="Chat invalid JSON<br>";
+        debug+="Status invalid JSON<br>";
     }
 }
 function getStatus(){
@@ -104,6 +104,8 @@ function getStatus(){
        if (request.status >= 200 && request.status < 300) {
           parseStatus(request.responseText);
           statusRefreshCounter++;
+       }else{
+          debug+="getStatus failed";
        }
     });
     request.send();
@@ -137,6 +139,8 @@ function getCargo(){
     request.addEventListener('load', function(event) {
        if (request.status >= 200 && request.status < 300) {
           parseCargo(request.responseText);
+       }else{
+          debug+="getCargo failed";
        }
     });
     request.send();
@@ -160,6 +164,8 @@ function getJournal(){
        if (request.status >= 200 && request.status < 300) {
           parseJournal(request.responseText);
           journalRefreshCounter++;
+       }else{
+          debug+="getJournal failed";
        }
     });
     request.send();
@@ -314,9 +320,11 @@ function updateAttackers(){
     attackingPlayers=attackers;
 }
 function isAttacker(commander){
-    for(var i=0;i<attackingPlayers.length;i++)
-    {
-        if(commander.indexOf(attackingPlayers[i])!=-1){return true;}
+    if(commander !== undefined){
+      for(var i=0;i<attackingPlayers.length;i++)
+      {
+          if(commander.indexOf(attackingPlayers[i])!=-1){return true;}
+      }
     }
     return false;
 }
@@ -925,17 +933,17 @@ function drawPanelsOnScreen(){
 
 function updateDataInputSlow(){
     getJournal();
-    setTimeout(function(){updateDataInputSlow();},1000);
+    setTimeout(function(){updateDataInputSlow();},2500);
 }
 function updateDataInputFast(){
     getStatus();
     getCargo();
-    setTimeout(function(){updateDataInputFast();},250);
+    setTimeout(function(){updateDataInputFast();},500);
 }
 function updateGUI(){
     autoswitchView();
     drawPanelsOnScreen();
-    setTimeout(function(){updateGUI();},500);
+    setTimeout(function(){updateGUI();},1000);
 }
 
 function init(){
